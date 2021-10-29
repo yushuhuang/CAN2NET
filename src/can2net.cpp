@@ -19,7 +19,7 @@
 #include "worker.h"
 #include "CanHacker.h"
 
-const char *cmdlinename = "can0";
+const char *cmdlinename = "vcan0";
 const int serverPort = 20100;
 static volatile int running = 1;
 
@@ -45,6 +45,12 @@ int initServer()
     adr_srvr.sin_port = htons(serverPort);
     adr_srvr.sin_addr.s_addr = INADDR_ANY;
 
+    int opt = 1;
+    if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt)) == -1) {
+        perror("setsockopt");
+	return -1;
+    }
+
     if (bind(serverSocket, (struct sockaddr *)&adr_srvr, sizeof adr_srvr) == -1) {
         perror("bind(2)");
         return -1;
@@ -67,8 +73,7 @@ int initCan(struct sockaddr_can *addr)
     }
 
     struct ifreq ifr;
-    memset(&ifr.ifr_name, 0, sizeof(ifr.ifr_name));
-    strncpy(ifr.ifr_name, cmdlinename, strlen(cmdlinename));
+    strcpy(ifr.ifr_name, cmdlinename);
 
     if (ioctl(canSocket, SIOCGIFINDEX, &ifr) < 0) {
         perror("SIOCGIFINDEX");
@@ -201,7 +206,7 @@ int main(int argc, char **argv)
     struct mq_attr rxAttr;
     rxAttr.mq_flags = 0;
     rxAttr.mq_maxmsg = 10;
-    rxAttr.mq_msgsize = NET_MAX_MESSAGE;
+    rxAttr.mq_msgsize = CANET_SIZE;
     rxAttr.mq_curmsgs = 0;
 
     mqd_t netRxQueue = mq_open(SERVER_RX_QUEUE_NAME, O_CREAT | O_RDWR, 0644, &rxAttr);
@@ -241,6 +246,7 @@ int main(int argc, char **argv)
     struct ServerJob serverJob;
     serverJob.socket = serverSocket;
     serverJob.netRxQueue = netRxQueue;
+    serverJob.head = &head;
 
     pthread_t serverThreadID;
     err = pthread_create(&serverThreadID, NULL, &serverThread, &serverJob);

@@ -11,17 +11,7 @@
 #define SERVER_RX_QUEUE_NAME "/serverrxqueue"
 #define SERVER_TX_QUEUE_NAME "/servertxqueue-%d"
 
-#define NET_MAX_MESSAGE 2000
-
-#define CHECK(x) \
-    do { \
-        if (!(x)) { \
-            fprintf(stderr, "%s:%d: ", __func__, __LINE__); \
-            perror(#x); \
-            exit(-1); \
-        } \
-    } while (0) \
-
+#define CANET_SIZE 13
 
 LIST_HEAD(listhead, entry);
 struct entry {
@@ -29,6 +19,5 @@ struct entry {
     LIST_ENTRY(entry) entries;
 };
 
-unsigned char hexCharToByte(char hex);
 
 #endif /* #ifndef COMMON_H_ */

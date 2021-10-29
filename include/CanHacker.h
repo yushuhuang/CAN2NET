@@ -1,7 +1,7 @@
 /*
  * CanHacker.h
  *
- *  Created on: 17 дек. 2015 г.
+ *  Created on: 17 пїЅпїЅпїЅ. 2015 пїЅ.
  *      Author: Dmitry
  */
 
@@ -9,6 +9,7 @@
 #define CANHACKER_H_
 
 #include <linux/can.h>
+#include "common.h"
 
 #define CAN_MIN_DLEN 1
 #define HEX_PER_BYTE 2
@@ -21,8 +22,8 @@ class CanHacker {
         CanHacker();
         virtual ~CanHacker();
 
-        int parseTransmit(char *buffer, int length, struct can_frame *frame);
-        int createTransmit(struct can_frame *frame, char *buffer, int length);
+        int parseTransmit(char (&buffer)[CANET_SIZE], struct can_frame *frame);
+        int createTransmit(struct can_frame *frame, char (&buffer)[CANET_SIZE]);
 };
 
 #endif /* CANHACKER_H_ */

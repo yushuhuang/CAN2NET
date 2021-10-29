@@ -1,10 +1,3 @@
-/*
- * server.c
- *
- *  Created on: 30 ����. 2015 �.
- *      Author: Dmitry
- */
-
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -18,7 +11,6 @@
 
 #include "server.h"
 #include "common.h"
-#include "lib.h"
 
 void *serverThread(void *arg)
 {
@@ -43,7 +35,7 @@ void *serverThread(void *arg)
         struct mq_attr txAttr;
         txAttr.mq_flags = 0;
         txAttr.mq_maxmsg = 10;
-        txAttr.mq_msgsize = NET_MAX_MESSAGE;
+        txAttr.mq_msgsize = CANET_SIZE;
         txAttr.mq_curmsgs = 0;
 
         char serverTxQueueName[80];
@@ -64,7 +56,7 @@ void *serverThread(void *arg)
 
         pthread_t txThreadId;
         if (pthread_create(&txThreadId, NULL, outputConnectionHandler, (void*)txJob) < 0) {
-            perror("could not create thread");
+            perror("could not create thread for outputConnectionHandler");
             return NULL;
         }
 
@@ -75,7 +67,7 @@ void *serverThread(void *arg)
 
         pthread_t rxThreadId;
         if (pthread_create(&rxThreadId, NULL, inputConnectionHandler, (void*)rxJob) < 0) {
-            perror("could not create thread");
+            perror("could not create thread for inputConnectionHandler");
             return NULL;
         }
 
@@ -89,21 +81,17 @@ void *serverThread(void *arg)
 
 void *inputConnectionHandler(void *job_ptr)
 {
-    //Get the socket descriptor
     struct netRxJob *job = (struct netRxJob *)job_ptr;
 
-    char clientMessage[NET_MAX_MESSAGE];
+    char clientMessage[CANET_SIZE];
 
-    //Receive a message from client
     ssize_t readSize;
-    while ( (readSize = recv(job->socket, clientMessage , NET_MAX_MESSAGE, 0)) > 0 ) {
+    while ( (readSize = recv(job->socket, clientMessage , CANET_SIZE, 0)) > 0 ) {
         if (mq_send(job->queue, clientMessage, readSize, 0) != 0) {
             perror("mq_send");
             return NULL;
         }
     }
-
-
 
     /*if (read_size == 0) {
         puts("Client disconnected");
@@ -124,36 +112,19 @@ void *inputConnectionHandler(void *job_ptr)
 
 void *outputConnectionHandler(void *job_ptr)
 {
-    //Get the socket descriptor
     struct netTxJob *job = (struct netTxJob *)job_ptr;
 
-    //char client_message[2000];
-
-    //ssize_t bytes_read;
-    char clientMessage[NET_MAX_MESSAGE];
+    char clientMessage[CANET_SIZE];
 
     ssize_t bytes_read;
-
-    /* receive the message */
-    while ((bytes_read = mq_receive(job->queue, clientMessage, NET_MAX_MESSAGE, NULL))) {
+    while ((bytes_read = mq_receive(job->queue, clientMessage, CANET_SIZE, NULL))) {
         if (bytes_read == -1) {
-            perror("mq_receive");
+            perror("mq_receive error");
             return NULL;
         }
         puts("netTx: read message from queue");
-        //char buf[CL_CFSZ];
-        //sprint_canframe(buf, &frame, 1, CAN_MAX_DLEN);
-
-
         write(job->socket, clientMessage, bytes_read);
     }
-
-    /*if (read_size == 0) {
-        puts("Client disconnected");
-        fflush(stdout);
-    } else if(read_size == -1) {
-        perror("recv failed");
-    }*/
 
     if (mq_close(job->queue)) {
         perror("mq_close");

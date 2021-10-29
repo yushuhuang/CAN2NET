@@ -9,9 +9,9 @@
 #include <sys/queue.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <stdio.h>
 
 #include "common.h"
-#include "lib.h"
 
 //int messagesSent = 0;
 
@@ -71,33 +71,6 @@ void* canRxThread(void *arg)
                 perror("mq_send");
                 return NULL;
             }
-
-
-            /*struct cmsghdr *cmsg;
-            for (cmsg = CMSG_FIRSTHDR(&msg);
-                 cmsg && (cmsg->cmsg_level == SOL_SOCKET);
-                 cmsg = CMSG_NXTHDR(&msg,cmsg)) {
-                if (cmsg->cmsg_type == SO_RXQ_OVFL)
-                    dropcnt = *(__u32 *)CMSG_DATA(cmsg);
-            }
-
-            if (dropcnt != last_dropcnt) {
-
-                __u32 frames = dropcnt - last_dropcnt;
-
-                printf("DROPCOUNT: dropped %d CAN frame%s on '%s' socket (total drops %d)\n",
-                       frames, (frames > 1)?"s":"", cmdlinename, dropcnt);
-
-                last_dropcnt = dropcnt;
-            }*/
-
-            /*fprint_canframe(stdout, &frame, maxdlen);
-            char buf[CL_CFSZ];
-
-            canHacker->createTransmit(&frame, buf, CL_CFSZ);
-            sprint_canframe(buf, cf, maxdlen);
-            fprintf(stream, "%s", buf);*/
-            //printf("\n");
         }
 
         fflush(stdout);
@@ -132,41 +105,6 @@ void* canTxThread(void *arg)
         }
 
     }
-
-    /*unsigned char messageDataIgnition[8] = {0x0E, 0x00, 0x00, 0x0F, 0x01, 0x00, 0x00, 0xA0};
-    unsigned char messageDataVIN[8] = {0x32, 0x31, 0x34, 0x39, 0x36, 0x34, 0x36, 0x34};
-    CAN.sendMsgBuf(0x2B6, 0, 8, messageDataVIN);
-    CAN.sendMsgBuf(0x036, 0, 8, messageDataIgnition);*/
-
-    /*frame.can_id = 0x036;
-    frame.can_dlc = 8;
-    frame.data[0] = 0x0E;
-    frame.data[1] = 0x00;
-    frame.data[2] = 0x00;
-    frame.data[3] = 0x0F;
-    frame.data[4] = 0x01;
-    frame.data[5] = 0x0E;
-    frame.data[6] = 0x0E;
-    frame.data[7] = 0xA0;
-
-    if (sendFrame(s, &frame)) {
-        return NULL;
-    }
-
-    frame.can_id = 0x2B6;
-    frame.can_dlc = 8;
-    frame.data[0] = 0x32;
-    frame.data[1] = 0x31;
-    frame.data[2] = 0x34;
-    frame.data[3] = 0x39;
-    frame.data[4] = 0x36;
-    frame.data[5] = 0x34;
-    frame.data[6] = 0x36;
-    frame.data[7] = 0x34;
-
-    if (sendFrame(s, &frame)) {
-        return NULL;
-    }*/
 
     return NULL;
 }
