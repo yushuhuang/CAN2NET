@@ -6,15 +6,16 @@
 #include "CanHacker.h"
 
 struct can2netJob {
-  mqd_t canQueue;
   struct listhead *head;
   CanHacker *canHacker;
+  int canSocket;
+  struct sockaddr_can *addr;
 };
 
 struct net2canJob {
-  mqd_t canQueue;
   mqd_t netQueue;
   CanHacker *canHacker;
+  int canSocket;
 };
 
 void *can2netThread(void *arg);

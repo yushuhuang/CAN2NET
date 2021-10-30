@@ -14,7 +14,6 @@
 #include <unistd.h>
 
 #include "CanHacker.h"
-#include "can.h"
 #include "common.h"
 #include "server.h"
 #include "worker.h"
@@ -81,19 +80,6 @@ int initCan(struct sockaddr_can *addr) {
     return 1;
   }
 
-  // try to switch the socket into CAN FD mode
-  /*const int canfd_on = 1;
-  if (setsockopt(canSocket, SOL_CAN_RAW, CAN_RAW_FD_FRAMES, &canfd_on,
-  sizeof(canfd_on)) < 0) { perror("setsockopt CAN_RAW_FD_FRAMES"); return -1;
-  }*/
-
-  /*const int dropmonitor_on = 1;
-  if (setsockopt(canSocket, SOL_SOCKET, SO_RXQ_OVFL,
-             &dropmonitor_on, sizeof(dropmonitor_on)) < 0) {
-      perror("setsockopt SO_RXQ_OVFL not supported by your Linux Kernel");
-      return -1;
-  }*/
-
   addr->can_family = AF_CAN;
   addr->can_ifindex = ifr.ifr_ifindex;
 
@@ -115,44 +101,8 @@ int main(int argc, char **argv) {
   /* create the message queue */
   int err;
 
-  /*pthread_t serverThreadId;
-
-  err = pthread_create(&serverThreadId, NULL, &serverThread, queues);
-  if (err != 0) {
-      printf("Can't create server thread :[%s]", strerror(err));
-  } else {
-      printf("Server thread created successfully\n");
-  }*/
-
   // init queues
   LIST_INIT(&head);
-
-  struct mq_attr canTxAttr;
-  canTxAttr.mq_flags = 0;
-  canTxAttr.mq_maxmsg = 10;
-  canTxAttr.mq_msgsize = CAN_MTU;
-  canTxAttr.mq_curmsgs = 0;
-
-  mqd_t canTxQueue =
-      mq_open(CAN_TX_QUEUE_NAME, O_CREAT | O_RDWR, 0666, &canTxAttr);
-  if (canTxQueue == (mqd_t)-1) {
-    fprintf(stderr, "error: %d\n", errno);
-    perror("mq_open");
-    return -1;
-  }
-
-  struct mq_attr canRxAttr;
-  canRxAttr.mq_flags = 0;
-  canRxAttr.mq_maxmsg = 10;
-  canRxAttr.mq_msgsize = CAN_MTU;
-  canRxAttr.mq_curmsgs = 0;
-
-  mqd_t canRxQueue =
-      mq_open(CAN_RX_QUEUE_NAME, O_CREAT | O_RDWR, 0644, &canRxAttr);
-  if (canRxQueue == (mqd_t)-1) {
-    perror("mq_open");
-    return -1;
-  }
 
   // init sockets
   struct sockaddr_can addr;
@@ -167,35 +117,6 @@ int main(int argc, char **argv) {
   }
 
   // init threads
-  struct canTxJob txCanJob;
-  txCanJob.addr = &addr;
-  txCanJob.queue = canTxQueue;
-  txCanJob.socket = canSocket;
-
-  pthread_t canTxThreadId;
-
-  err = pthread_create(&canTxThreadId, NULL, &canTxThread, &txCanJob);
-  if (err != 0) {
-    printf("Can't create CAN TX thread :[%s]", strerror(err));
-  } else {
-    printf("CAN TX thread created successfully\n");
-  }
-
-  struct canRxJob rxCanJob;
-  rxCanJob.addr = &addr;
-  rxCanJob.queue = canRxQueue;
-  // rxCanJob.head = &head;
-  rxCanJob.socket = canSocket;
-
-  pthread_t canRxThreadId;
-
-  err = pthread_create(&canRxThreadId, NULL, &canRxThread, &rxCanJob);
-  if (err != 0) {
-    printf("Can't create CAN TX thread :[%s]", strerror(err));
-  } else {
-    printf("CAN TX thread created successfully\n");
-  }
-
   // network rx queue
   struct mq_attr rxAttr;
   rxAttr.mq_flags = 0;
@@ -213,8 +134,8 @@ int main(int argc, char **argv) {
   // workers
   struct net2canJob net2canJob;
   net2canJob.netQueue = netRxQueue;
-  net2canJob.canQueue = canTxQueue;
   net2canJob.canHacker = &canHacker;
+  net2canJob.canSocket = canSocket;
 
   pthread_t net2canThreadID;
   err = pthread_create(&net2canThreadID, NULL, &net2canThread, &net2canJob);
@@ -225,9 +146,10 @@ int main(int argc, char **argv) {
   }
 
   struct can2netJob can2netJob;
-  can2netJob.canQueue = canRxQueue;
   can2netJob.head = &head;
   can2netJob.canHacker = &canHacker;
+  can2netJob.canSocket = canSocket;
+  can2netJob.addr = &addr;
 
   pthread_t can2netThreadID;
   err = pthread_create(&can2netThreadID, NULL, &can2netThread, &can2netJob);
@@ -263,16 +185,6 @@ int main(int argc, char **argv) {
   close(serverSocket);
 
   if (mq_close(netRxQueue)) {
-    perror("mq_close");
-    return -1;
-  }
-
-  if (mq_close(canTxQueue)) {
-    perror("mq_close");
-    return -1;
-  }
-
-  if (mq_close(canRxQueue)) {
     perror("mq_close");
     return -1;
   }

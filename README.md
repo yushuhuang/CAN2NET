@@ -1,11 +1,13 @@
+# CAN2NET
 
-```
-         CanRxThread                  Can2netThread  (a list of)   ServerThread(Output)
-CanBus ---------------> CanRxQueue -----------------> netTxQueue -----------------------> send
-         CanTxThread                  net2canThread                ServerThread(Input)
-CanBus <--------------- CanTxQueue <----------------- netRxQueue ------------------------ recv
+```plaintext
+        Can2netThread  (a list of)   ServerThread(Output)
+CanBus ---------------> netTxQueue -----------------------> send
+        net2canThread                ServerThread(Input)
+CanBus <--------------- netRxQueue ------------------------ recv
 ```
 
 ## TODO
-1. can we merge CanRxThread and Can2netThread and the other way.
-2. support for multiple can
+
+1. support for multiple can
+2. mv prints to logger
