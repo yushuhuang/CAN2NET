@@ -1,17 +1,9 @@
 #include <arpa/inet.h>
 #include <cstring>
-#include <inttypes.h>
-#include <stdio.h>
 
 #include "CanHacker.h"
-#include "common.h"
 
-CanHacker::CanHacker() {}
-
-CanHacker::~CanHacker() {}
-
-int CanHacker::parseTransmit(char (&buffer)[CANET_SIZE],
-                             struct can_frame *frame) {
+int parseTransmit(char (&buffer)[CANET_SIZE], struct can_frame *frame) {
   uint8_t FRAME_INFO = buffer[0];
   bool is_extended_id = FRAME_INFO >> 7 & 1;
   bool is_remote_frame = FRAME_INFO >> 6 & 1;
@@ -31,12 +23,10 @@ int CanHacker::parseTransmit(char (&buffer)[CANET_SIZE],
     for (int i = 0; i < frame->can_dlc; i++)
       frame->data[i] = buffer[5 + i];
   }
-
   return 0;
 }
 
-int CanHacker::createTransmit(struct can_frame *frame,
-                              char (&buffer)[CANET_SIZE]) {
+int createTransmit(struct can_frame *frame, char (&buffer)[CANET_SIZE]) {
   bool is_extended_id = frame->can_id & CAN_EFF_FLAG;
   bool is_remote_frame = frame->can_id & CAN_RTR_FLAG;
   bool is_error_frame = frame->can_id & CAN_EFF_FLAG;

@@ -15,7 +15,7 @@
 void *serverThread(void *arg) {
   struct ServerJob *serverJob = (struct ServerJob *)arg;
   int serverSocket = serverJob->socket;
-  struct listhead *head = serverJob->head;
+  struct listhead *netTxQueues = serverJob->netTxQueues;
 
   int serverTxQueueCount = 0;
   struct sockaddr_in clientSocketAddress;
@@ -49,7 +49,7 @@ void *serverThread(void *arg) {
 
     struct entry *newEntry = (struct entry *)malloc(sizeof(struct entry));
     newEntry->queue = netTxQueue;
-    LIST_INSERT_HEAD(head, newEntry, entries);
+    LIST_INSERT_HEAD(netTxQueues, newEntry, entries);
 
     struct netTxJob *txJob = (struct netTxJob *)malloc(sizeof(struct netTxJob));
     txJob->socket = clientSocket;

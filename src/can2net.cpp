@@ -13,7 +13,6 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
-#include "CanHacker.h"
 #include "common.h"
 #include "server.h"
 #include "worker.h"
@@ -22,9 +21,7 @@ const char *cmdlinename = "vcan0";
 const int serverPort = 20100;
 static volatile int running = 1;
 
-struct listhead head;
-
-CanHacker canHacker;
+struct listhead netTxQueues;
 
 void sigterm(int signo) { running = 0; }
 
@@ -96,13 +93,10 @@ int main(int argc, char **argv) {
   signal(SIGHUP, sigterm);
   signal(SIGINT, sigterm);
 
-  /* initialize the queue attributes */
-
-  /* create the message queue */
   int err;
 
   // init queues
-  LIST_INIT(&head);
+  LIST_INIT(&netTxQueues);
 
   // init sockets
   struct sockaddr_can addr;
@@ -116,7 +110,6 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  // init threads
   // network rx queue
   struct mq_attr rxAttr;
   rxAttr.mq_flags = 0;
@@ -131,10 +124,9 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  // workers
+  // worker threads
   struct net2canJob net2canJob;
-  net2canJob.netQueue = netRxQueue;
-  net2canJob.canHacker = &canHacker;
+  net2canJob.netRxQueue = netRxQueue;
   net2canJob.canSocket = canSocket;
 
   pthread_t net2canThreadID;
@@ -142,36 +134,36 @@ int main(int argc, char **argv) {
   if (err != 0) {
     printf("Can't create net2can thread :[%s]", strerror(err));
   } else {
-    printf("net2can thread created successfully\n");
+    printf("net2can thread created\n");
   }
 
   struct can2netJob can2netJob;
-  can2netJob.head = &head;
-  can2netJob.canHacker = &canHacker;
+  can2netJob.netTxQueues = &netTxQueues;
   can2netJob.canSocket = canSocket;
-  can2netJob.addr = &addr;
 
   pthread_t can2netThreadID;
   err = pthread_create(&can2netThreadID, NULL, &can2netThread, &can2netJob);
   if (err != 0) {
     printf("Can't create can2net thread :[%s]", strerror(err));
   } else {
-    printf("can2net thread created successfully\n");
+    printf("can2net thread created\n");
   }
 
+  // server thread
   struct ServerJob serverJob;
   serverJob.socket = serverSocket;
   serverJob.netRxQueue = netRxQueue;
-  serverJob.head = &head;
+  serverJob.netTxQueues = &netTxQueues;
 
   pthread_t serverThreadID;
   err = pthread_create(&serverThreadID, NULL, &serverThread, &serverJob);
   if (err != 0) {
     printf("Can't create server thread :[%s]", strerror(err));
   } else {
-    printf("Server thread created successfully\n");
+    printf("Server thread created\n");
   }
 
+  // main thread
   while (running) {
     sleep(1);
   }
@@ -190,7 +182,7 @@ int main(int argc, char **argv) {
   }
 
   struct entry *eachEntry;
-  LIST_FOREACH(eachEntry, &head, entries) {
+  LIST_FOREACH(eachEntry, &netTxQueues, entries) {
     if (mq_close(eachEntry->queue)) {
       perror("mq_close");
       return -1;

@@ -16,7 +16,7 @@ struct netTxJob {
 struct ServerJob {
   int socket;
   mqd_t netRxQueue;
-  struct listhead *head;
+  struct listhead *netTxQueues;
 };
 
 void *serverThread(void *arg);
