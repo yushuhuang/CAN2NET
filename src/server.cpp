@@ -53,7 +53,7 @@ void *serverThread(void *arg) {
 
     struct netTxJob *txJob = (struct netTxJob *)malloc(sizeof(struct netTxJob));
     txJob->socket = clientSocket;
-    txJob->queue = netTxQueue;
+    txJob->txQueue = netTxQueue;
 
     pthread_t txThreadId;
     if (pthread_create(&txThreadId, NULL, outputConnectionHandler,
@@ -65,7 +65,11 @@ void *serverThread(void *arg) {
     // network rx
     struct netRxJob *rxJob = (struct netRxJob *)malloc(sizeof(struct netRxJob));
     rxJob->socket = clientSocket;
-    rxJob->queue = serverJob->netRxQueue;
+    rxJob->rxQueue = serverJob->netRxQueue;
+    rxJob->txQueue = netTxQueue;
+    rxJob->txQueueElm = newEntry;
+    rxJob->txThreadId = txThreadId;
+    rxJob->txJob = txJob;
 
     pthread_t rxThreadId;
     if (pthread_create(&rxThreadId, NULL, inputConnectionHandler,
@@ -74,8 +78,6 @@ void *serverThread(void *arg) {
       return NULL;
     }
 
-    // Now join the thread , so that we dont terminate before the thread
-    // pthread_join( thread_id , NULL);
     puts("Handler assigned");
   }
 
@@ -89,26 +91,34 @@ void *inputConnectionHandler(void *job_ptr) {
 
   ssize_t readSize;
   while ((readSize = recv(job->socket, clientMessage, CANET_SIZE, 0)) > 0) {
-    if (mq_send(job->queue, clientMessage, readSize, 0) != 0) {
+    if (mq_send(job->rxQueue, clientMessage, readSize, 0) != 0) {
       perror("mq_send");
       return NULL;
     }
   }
 
-  /*if (read_size == 0) {
-      puts("Client disconnected");
-      fflush(stdout);
-  } else if(read_size == -1) {
-      perror("recv failed");
-  }*/
+  // FIXME
+  // should we mutex lock entry
 
-  if (close(job->socket)) {
-    perror("close");
+  // Client disconnected
+  if (readSize <= 0) {
+    if (readSize < 0)
+      perror("recv from client failed");
+    puts("Client disconnected");
+    if (mq_close(job->txQueue) < 0) {
+      perror("mq_close for txqueue");
+    }
+    LIST_REMOVE(job->txQueueElm, entries);
+    pthread_cancel(job->txThreadId);
+    free(job->txJob);
     return NULL;
   }
 
+  if (close(job->socket) < 0) {
+    perror("close input client socket");
+    return NULL;
+  }
   free(job_ptr);
-
   return NULL;
 }
 
@@ -118,27 +128,24 @@ void *outputConnectionHandler(void *job_ptr) {
   char clientMessage[CANET_SIZE];
 
   ssize_t bytes_read;
-  while (
-      (bytes_read = mq_receive(job->queue, clientMessage, CANET_SIZE, NULL))) {
-    if (bytes_read == -1) {
+  while ((bytes_read =
+              mq_receive(job->txQueue, clientMessage, CANET_SIZE, NULL))) {
+    if (bytes_read < 0) {
       perror("mq_receive error");
       return NULL;
     }
-    puts("netTx: read message from queue");
     write(job->socket, clientMessage, bytes_read);
+    puts("sending message");
   }
 
-  if (mq_close(job->queue)) {
+  if (mq_close(job->txQueue) < 0) {
     perror("mq_close");
     return NULL;
   }
-
-  if (close(job->socket)) {
-    perror("close");
+  if (close(job->socket) < 0) {
+    perror("close output client socket");
     return NULL;
   }
-
   free(job_ptr);
-
   return NULL;
 }

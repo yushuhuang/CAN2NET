@@ -5,12 +5,16 @@
 
 struct netRxJob {
   int socket;
-  mqd_t queue;
+  mqd_t rxQueue;
+  mqd_t txQueue;
+  struct entry *txQueueElm;
+  pthread_t txThreadId;
+  struct netTxJob *txJob;
 };
 
 struct netTxJob {
   int socket;
-  mqd_t queue;
+  mqd_t txQueue;
 };
 
 struct ServerJob {
