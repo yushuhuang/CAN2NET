@@ -1,15 +1,6 @@
-#include <errno.h>
-#include <linux/can.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/queue.h>
-#include <sys/socket.h>
-#include <unistd.h>
-
+#include "worker.h"
 #include "CanHacker.h"
 #include "common.h"
-#include "worker.h"
 
 void *can2netThread(void *arg) {
   struct can2netJob *job = (struct can2netJob *)arg;

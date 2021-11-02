@@ -1,9 +1,8 @@
 #ifndef WORKER_H_
 #define WORKER_H_
 
-#include <mqueue.h>
-
 #include "CanHacker.h"
+#include <mqueue.h>
 
 struct can2netJob {
   struct listhead *netTxQueues;

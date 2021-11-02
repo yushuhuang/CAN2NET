@@ -1,10 +1,12 @@
 #ifndef COMMON_H_
 #define COMMON_H_
 
-#include <linux/can.h>
+#include <errno.h>
 #include <mqueue.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/queue.h>
+#include <unistd.h>
 
 #define CAN_TX_QUEUE_NAME "/cantxqueue"
 #define CAN_RX_QUEUE_NAME "/canrxqueue"

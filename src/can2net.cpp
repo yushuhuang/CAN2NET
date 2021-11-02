@@ -1,29 +1,17 @@
-#include <arpa/inet.h>
-#include <errno.h>
-#include <linux/can.h>
-#include <linux/can/raw.h>
-#include <mqueue.h>
-#include <net/if.h>
-#include <netinet/in.h>
-#include <pthread.h>
-#include <signal.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/ioctl.h>
-#include <sys/queue.h>
-#include <unistd.h>
-
 #include "common.h"
 #include "server.h"
 #include "worker.h"
+#include <linux/can/raw.h>
+#include <net/if.h>
+#include <netinet/in.h>
+#include <pthread.h>
+#include <string.h>
+#include <sys/ioctl.h>
 
-const char *cmdlinename = "vcan0";
+const char *can_id = "vcan0";
 const int serverPort = 20100;
-static volatile int running = 1;
 
 struct listhead netTxQueues;
-
-void sigterm(int signo) { running = 0; }
 
 int initServer() {
   int serverSocket = socket(PF_INET, SOCK_STREAM, 0);
@@ -65,7 +53,7 @@ int initCan(struct sockaddr_can *addr) {
   }
 
   struct ifreq ifr;
-  strcpy(ifr.ifr_name, cmdlinename);
+  strcpy(ifr.ifr_name, can_id);
 
   if (ioctl(canSocket, SIOCGIFINDEX, &ifr) < 0) {
     perror("SIOCGIFINDEX");
@@ -89,10 +77,6 @@ int initCan(struct sockaddr_can *addr) {
 }
 
 int main(int argc, char **argv) {
-  signal(SIGTERM, sigterm);
-  signal(SIGHUP, sigterm);
-  signal(SIGINT, sigterm);
-
   int err;
 
   // init queues
@@ -149,28 +133,69 @@ int main(int argc, char **argv) {
     printf("can2net thread created\n");
   }
 
-  // server thread
-  struct ServerJob serverJob;
-  serverJob.socket = serverSocket;
-  serverJob.netRxQueue = netRxQueue;
-  serverJob.netTxQueues = &netTxQueues;
+  // server main thread
+  int serverTxQueueCount = 0;
+  struct sockaddr_in clientSocketAddress;
+  int clientSocket;
+  size_t socketAddrLength = sizeof clientSocketAddress;
+  while ((clientSocket =
+              accept(serverSocket, (struct sockaddr *)&clientSocketAddress,
+                     (socklen_t *)&socketAddrLength))) {
+    if (clientSocket < 0) {
+      perror("accept failed");
+      break;
+    }
 
-  pthread_t serverThreadID;
-  err = pthread_create(&serverThreadID, NULL, &serverThread, &serverJob);
-  if (err != 0) {
-    printf("Can't create server thread :[%s]", strerror(err));
-  } else {
-    printf("Server thread created\n");
-  }
+    puts("Connection accepted");
 
-  // main thread
-  while (running) {
-    sleep(1);
-  }
+    // network tx
+    struct mq_attr txAttr;
+    txAttr.mq_flags = 0;
+    txAttr.mq_maxmsg = 10;
+    txAttr.mq_msgsize = CANET_SIZE;
+    txAttr.mq_curmsgs = 0;
 
-  if (pthread_cancel(serverThreadID)) {
-    perror("pthread_cancel");
-    return -1;
+    char serverTxQueueName[80];
+    sprintf(serverTxQueueName, SERVER_TX_QUEUE_NAME, serverTxQueueCount++);
+    mqd_t netTxQueue =
+        mq_open(serverTxQueueName, O_CREAT | O_RDWR, 0644, &txAttr);
+    if (netTxQueue == (mqd_t)-1) {
+      perror("opening serverTxQueue");
+      break;
+    }
+
+    struct entry *newEntry = (struct entry *)malloc(sizeof(struct entry));
+    newEntry->queue = netTxQueue;
+    LIST_INSERT_HEAD(&netTxQueues, newEntry, entries);
+
+    struct netTxJob *txJob = (struct netTxJob *)malloc(sizeof(struct netTxJob));
+    txJob->socket = clientSocket;
+    txJob->txQueue = netTxQueue;
+
+    pthread_t txThreadId;
+    if (pthread_create(&txThreadId, NULL, outputConnectionHandler,
+                       (void *)txJob) < 0) {
+      perror("creating outputConnectionHandler");
+      break;
+    }
+
+    // network rx
+    struct netRxJob *rxJob = (struct netRxJob *)malloc(sizeof(struct netRxJob));
+    rxJob->socket = clientSocket;
+    rxJob->rxQueue = netRxQueue;
+    rxJob->txQueue = netTxQueue;
+    rxJob->txQueueElm = newEntry;
+    rxJob->txThreadId = txThreadId;
+    rxJob->txJob = txJob;
+
+    pthread_t rxThreadId;
+    if (pthread_create(&rxThreadId, NULL, inputConnectionHandler,
+                       (void *)rxJob) < 0) {
+      perror("creating inputConnectionHandler");
+      break;
+    }
+
+    puts("Handlers assigned");
   }
 
   close(canSocket);
