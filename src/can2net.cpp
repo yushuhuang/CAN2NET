@@ -76,7 +76,7 @@ int initCan(struct sockaddr_can *addr) {
   return canSocket;
 }
 
-int main(int argc, char **argv) {
+int main() {
   int err;
 
   // init queues

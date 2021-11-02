@@ -7,7 +7,7 @@ void *can2netThread(void *arg) {
 
   struct can_frame frame;
   ssize_t nbytes;
-  while (nbytes = read(job->canSocket, &frame, sizeof(struct can_frame))) {
+  while ((nbytes = read(job->canSocket, &frame, sizeof(struct can_frame)))) {
     if (nbytes < 0) {
       perror("can2netThread, read from can");
       return NULL;
