@@ -6,7 +6,6 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <time.h>
 #include <unistd.h>
 
 #include "common.h"
@@ -43,7 +42,7 @@ void *serverThread(void *arg) {
     mqd_t netTxQueue =
         mq_open(serverTxQueueName, O_CREAT | O_RDWR, 0644, &txAttr);
     if (netTxQueue == (mqd_t)-1) {
-      perror("mq_open");
+      perror("opening serverTxQueue");
       return NULL;
     }
 
@@ -58,7 +57,7 @@ void *serverThread(void *arg) {
     pthread_t txThreadId;
     if (pthread_create(&txThreadId, NULL, outputConnectionHandler,
                        (void *)txJob) < 0) {
-      perror("could not create thread for outputConnectionHandler");
+      perror("creating outputConnectionHandler");
       return NULL;
     }
 
@@ -74,50 +73,49 @@ void *serverThread(void *arg) {
     pthread_t rxThreadId;
     if (pthread_create(&rxThreadId, NULL, inputConnectionHandler,
                        (void *)rxJob) < 0) {
-      perror("could not create thread for inputConnectionHandler");
+      perror("creating inputConnectionHandler");
       return NULL;
     }
 
-    puts("Handler assigned");
+    puts("Handlers assigned");
   }
 
   return NULL;
 }
 
 void *inputConnectionHandler(void *job_ptr) {
-  struct netRxJob *job = (struct netRxJob *)job_ptr;
+  struct netRxJob *rxjob = (struct netRxJob *)job_ptr;
 
   char clientMessage[CANET_SIZE];
-
-  ssize_t readSize;
-  while ((readSize = recv(job->socket, clientMessage, CANET_SIZE, 0)) > 0) {
-    if (mq_send(job->rxQueue, clientMessage, readSize, 0) != 0) {
-      perror("mq_send");
-      return NULL;
+  ssize_t msg_size;
+  while ((msg_size = recv(rxjob->socket, clientMessage, CANET_SIZE, 0)) > 0) {
+    if (mq_send(rxjob->rxQueue, clientMessage, msg_size, 0) != 0) {
+      perror("inputConnection, sending to netRxQueue");
+      break;
     }
   }
 
   // FIXME
   // should we mutex lock entry
 
-  // Client disconnected
-  if (readSize <= 0) {
-    if (readSize < 0)
-      perror("recv from client failed");
+  if (msg_size < 0)
+    perror("inputConnection, receiving from client");
+  if (msg_size == 0)
     puts("Client disconnected");
-    if (mq_close(job->txQueue) < 0) {
-      perror("mq_close for txqueue");
-    }
-    LIST_REMOVE(job->txQueueElm, entries);
-    pthread_cancel(job->txThreadId);
-    free(job->txJob);
-    return NULL;
-  }
 
-  if (close(job->socket) < 0) {
-    perror("close input client socket");
-    return NULL;
-  }
+  // cleanup
+  if (mq_close(rxjob->txQueue) < 0)
+    perror("inputConnection, closing netTxQueue");
+
+  if (pthread_cancel(rxjob->txThreadId) != 0)
+    perror("inputConnection, canceling outputConnection thread");
+
+  if (close(rxjob->socket) < 0)
+    perror("inputConnection, closing client socket");
+
+  LIST_REMOVE(rxjob->txQueueElm, entries);
+  free(rxjob->txQueueElm);
+  free(rxjob->txJob);
   free(job_ptr);
   return NULL;
 }
@@ -126,26 +124,23 @@ void *outputConnectionHandler(void *job_ptr) {
   struct netTxJob *job = (struct netTxJob *)job_ptr;
 
   char clientMessage[CANET_SIZE];
-
-  ssize_t bytes_read;
-  while ((bytes_read =
-              mq_receive(job->txQueue, clientMessage, CANET_SIZE, NULL))) {
-    if (bytes_read < 0) {
-      perror("mq_receive error");
-      return NULL;
+  ssize_t msg_size;
+  while (
+      (msg_size = mq_receive(job->txQueue, clientMessage, CANET_SIZE, NULL))) {
+    if (msg_size < 0) {
+      perror("outputConnection, receiving from netTxQueue");
+      break;
     }
-    write(job->socket, clientMessage, bytes_read);
-    puts("sending message");
+    if (write(job->socket, clientMessage, msg_size) < 0)
+      perror("outputConnection, sending to client");
   }
 
-  if (mq_close(job->txQueue) < 0) {
-    perror("mq_close");
-    return NULL;
-  }
-  if (close(job->socket) < 0) {
-    perror("close output client socket");
-    return NULL;
-  }
+  if (mq_close(job->txQueue) < 0)
+    perror("outputConnection, closing netTxQueue");
+
+  if (close(job->socket) < 0)
+    perror("outputConnection, closing client socket");
+
   free(job_ptr);
   return NULL;
 }
