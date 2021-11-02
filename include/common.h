@@ -3,6 +3,7 @@
 
 #include <errno.h>
 #include <mqueue.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/queue.h>
@@ -14,6 +15,8 @@
 #define SERVER_TX_QUEUE_NAME "/servertxqueue-%d"
 
 #define CANET_SIZE 13
+
+extern pthread_mutex_t mutex;
 
 LIST_HEAD(listhead, entry);
 struct entry {

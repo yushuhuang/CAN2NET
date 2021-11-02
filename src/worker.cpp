@@ -21,12 +21,13 @@ void *can2netThread(void *arg) {
     createTransmit(&frame, buffer);
 
     struct entry *eachEntry;
+    pthread_mutex_lock(&mutex);
     LIST_FOREACH(eachEntry, job->netTxQueues, entries) {
       if (mq_send(eachEntry->queue, buffer, CANET_SIZE, 0) != 0) {
-        perror("mq_send for netTxQueues");
-        return NULL;
+        perror("can2net, sending to netTxQueues");
       }
     }
+    pthread_mutex_unlock(&mutex);
   }
   return NULL;
 }

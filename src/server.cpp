@@ -1,6 +1,5 @@
 #include "server.h"
 #include "common.h"
-#include <pthread.h>
 
 void *inputConnectionHandler(void *job_ptr) {
   struct netRxJob *rxjob = (struct netRxJob *)job_ptr;
@@ -32,7 +31,10 @@ void *inputConnectionHandler(void *job_ptr) {
   if (close(rxjob->socket) < 0)
     perror("inputConnection, closing client socket");
 
+  pthread_mutex_lock(&mutex);
   LIST_REMOVE(rxjob->txQueueElm, entries);
+  pthread_mutex_unlock(&mutex);
+
   free(rxjob->txQueueElm);
   free(rxjob->txJob);
   free(job_ptr);

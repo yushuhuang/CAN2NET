@@ -4,7 +4,6 @@
 #include <linux/can/raw.h>
 #include <net/if.h>
 #include <netinet/in.h>
-#include <pthread.h>
 #include <string.h>
 #include <sys/ioctl.h>
 
@@ -12,6 +11,7 @@ const char *can_id = "vcan0";
 const int serverPort = 20100;
 
 struct listhead netTxQueues;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int initServer() {
   int serverSocket = socket(PF_INET, SOCK_STREAM, 0);
@@ -166,7 +166,9 @@ int main() {
 
     struct entry *newEntry = (struct entry *)malloc(sizeof(struct entry));
     newEntry->queue = netTxQueue;
+    pthread_mutex_lock(&mutex);
     LIST_INSERT_HEAD(&netTxQueues, newEntry, entries);
+    pthread_mutex_unlock(&mutex);
 
     struct netTxJob *txJob = (struct netTxJob *)malloc(sizeof(struct netTxJob));
     txJob->socket = clientSocket;

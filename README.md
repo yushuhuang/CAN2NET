@@ -11,3 +11,4 @@ CanBus <--------------- netRxQueue ------------------------ recv
 
 1. support for multiple can
 2. mv prints to logger
+3. rewrite server main thread using select
