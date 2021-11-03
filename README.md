@@ -1,3 +1,7 @@
+# UPDATE
+
+the discovery of [socketcand](https://github.com/linux-can/socketcand) made this project of no use
+
 # CAN2NET
 
 ```plaintext
